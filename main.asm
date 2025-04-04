@@ -3,6 +3,7 @@ BITS 64
 section .bss
     buffer resb 64
     stack_start resq 1
+    random_value resd 1
 
 section .data
     title db 'JanKen Game', 0xA,0
@@ -18,7 +19,19 @@ section .data
     scissors_msg db 'あなたの手: チョキ', 0xA,0
     scissors_msg_len equ $ - scissors_msg - 1
     paper_msg db 'あなたの手: パー', 0xA,0
+    enemy_rock_msg db '相手の手: グー', 0xA,0
+    enemy_rock_msg_len equ $ - enemy_rock_msg - 1
+    enemy_scissors_msg db '相手の手: チョキ', 0xA,0
+    enemy_scissors_msg_len equ $ - enemy_scissors_msg - 1
+    enemy_paper_msg db '相手の手: パー', 0xA,0
+    enemy_paper_msg_len equ $ - enemy_paper_msg - 1
     paper_msg_len equ $ - paper_msg - 1
+    draw_msg db 'あいこ', 0xA,0
+    draw_msg_len equ $ - draw_msg - 1
+    win_msg db 'あなたの勝ち', 0xA,0
+    win_msg_len equ $ - win_msg - 1
+    lose_msg db 'あなたの負け', 0xA,0
+    lose_msg_len equ $ - lose_msg - 1
     invalid_input_msg db '無効な入力です', 0xA,0
     invalid_input_msg_len equ $ - invalid_input_msg - 1
     timespec:
@@ -95,6 +108,19 @@ _start:
     mov rdx, r10
     call print_buffer_hand
 
+    rdtsc
+    mov [random_value], eax
+    mov eax, [random_value]
+    mov ecx, 3
+    xor edx, edx
+    div ecx
+
+    add edx, 1
+
+    call print_enemy_hand
+
+    lea rsi, [buffer]
+    call calculate_result
 
     mov rax, 60
     xor rdi, rdi
@@ -196,6 +222,105 @@ print_buffer_hand:
         pop rdi
         pop rax
         ret
+
+print_enemy_hand:
+    push rax
+    push rdi
+    push rsi
+    push rdx
+
+    cmp edx, 1
+    je .rock
+    cmp edx, 2
+    je .scissors
+    cmp edx, 3
+    je .paper
+    jmp .invalid_input
+    .rock:
+        lea rsi, [enemy_rock_msg]
+        mov rdx, enemy_rock_msg_len
+        jmp .print
+    .scissors:
+        lea rsi, [enemy_scissors_msg]
+        mov rdx, enemy_scissors_msg_len
+        jmp .print
+    .paper:
+        lea rsi, [enemy_paper_msg]
+        mov rdx, enemy_paper_msg_len
+        jmp .print
+    .invalid_input:
+        lea rsi, [invalid_input_msg]
+        mov rdx, invalid_input_msg_len
+        jmp .print
+    .print:
+        mov rax, 1
+        mov rdi, 1
+        syscall
+        pop rdx
+        pop rsi
+        pop rdi
+        pop rax
+        ret
+
+; 引数: rsi: 文字列のポインタ, rdx: 1-3のランダムな値
+calculate_result:
+    push rax
+    push rdi
+    push rsi
+    push rdx
+
+    cmp byte [rsi], '1'
+    je .rock
+    cmp byte [rsi], '2'
+    je .scissors
+    cmp byte [rsi], '3'
+    je .paper
+    jmp invalid_input
+    .rock:
+        cmp edx, 1
+        je .draw
+        cmp edx, 2
+        je .lose
+        jmp .win
+    .scissors:
+        cmp edx, 1
+        je .lose
+        cmp edx, 2
+        je .draw
+        jmp .win
+    .paper:
+        cmp edx, 1
+        je .win
+        cmp edx, 2
+        je .lose
+        jmp .draw
+    .draw:
+        lea rsi, [draw_msg]
+        mov rdx, draw_msg_len
+        call print_string
+        jmp .end
+    .win:
+        lea rsi, [win_msg]
+        mov rdx, win_msg_len
+        call print_string
+        jmp .end    
+    .lose:
+        lea rsi, [lose_msg]
+        mov rdx, lose_msg_len
+        call print_string
+        jmp .end
+    .end:
+        mov rax, 35
+        lea rdi, [fivesec]
+        xor rsi, rsi
+        syscall
+
+        pop rdx
+        pop rsi
+        pop rdi
+        pop rax
+        ret
+
 invalid_input:
     lea rsi, [cursor_up]
     mov rdx, cursor_up_len
